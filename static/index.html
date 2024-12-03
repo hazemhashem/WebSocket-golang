@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Chat</title>
+    <style>
+        /* Basic styling */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f9f9f9;
+        }
+
+        h2 {
+            text-align: center;
+            color: #333;
+        }
+
+        #active-users {
+            margin-bottom: 20px;
+            font-weight: bold;
+            padding: 10px;
+            background-color: #f1f1f1;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        #messages {
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .message {
+            padding: 5px;
+            border-bottom: 1px solid #ccc;
+            margin-bottom: 5px;
+        }
+
+        .message .timestamp {
+            font-size: 0.8em;
+            color: #888;
+        }
+
+        #message-input {
+            width: 80%;
+            padding: 10px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        #send-btn {
+            padding: 10px 20px;
+            cursor: pointer;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 5px;
+        }
+
+        #send-btn:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+
+        .active-user {
+            cursor: pointer;
+            color: #007BFF;
+            text-decoration: underline;
+        }
+
+        .active-user:hover {
+            color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <h2>WebSocket Chat</h2>
+    <div id="active-users">
+        <!-- Active users will be displayed here -->
+    </div>
+    <div id="messages">
+        <!-- Chat messages will be displayed here -->
+    </div>
+    <input type="text" id="message-input" placeholder="Type a message..." />
+    <button id="send-btn" disabled>Send</button>
+
+    <script>
+        const socketUrl = "ws://localhost:8080/chat"; // WebSocket server URL
+        const messageInput = document.getElementById("message-input");
+        const sendBtn = document.getElementById("send-btn");
+        const messagesContainer = document.getElementById("messages");
+        const activeUsersContainer = document.getElementById("active-users");
+
+        let socket;
+
+        function createWebSocket() {
+            socket = new WebSocket(socketUrl);
+
+            socket.onopen = () => {
+                console.log("Connected to WebSocket server");
+                sendBtn.disabled = false;
+            };
+
+            socket.onmessage = (event) => {
+                const msg = event.data;
+                if (msg.startsWith("Active users:")) {
+                    displayActiveUsers(msg); // Display active users list
+                } else {
+                    displayMessage(msg); // Display regular chat message
+                }
+            };
+
+            socket.onclose = () => {
+                console.log("Disconnected from WebSocket server");
+                sendBtn.disabled = true;
+            };
+
+            socket.onerror = (error) => {
+                console.error("WebSocket error:", error);
+            };
+        }
+
+        function displayMessage(msg) {
+            const messageElement = document.createElement("div");
+            messageElement.classList.add("message");
+
+            const timestamp = new Date().toLocaleTimeString();
+            messageElement.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${msg}`;
+            messagesContainer.appendChild(messageElement);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight; // Auto-scroll
+        }
+
+        function displayActiveUsers(msg) {
+            const users = msg.replace("Active users:", "").trim().split(",");
+            activeUsersContainer.innerHTML = "Active Users: ";
+            users.forEach(user => {
+                const userSpan = document.createElement("span");
+                userSpan.classList.add("active-user");
+                userSpan.textContent = user.trim();
+                userSpan.addEventListener("click", () => sendPrivateMessage(user.trim()));
+                activeUsersContainer.appendChild(userSpan);
+                activeUsersContainer.appendChild(document.createTextNode(" | "));
+            });
+        }
+
+        function sendPrivateMessage(user) {
+            const privateMessage = prompt(`Send private message to ${user}:`);
+            if (privateMessage) {
+                const message = `/pm ${user} ${privateMessage}`;
+                socket.send(message); // Send private message to the server
+            }
+        }
+
+        sendBtn.addEventListener("click", () => {
+            const message = messageInput.value.trim();
+            if (message && socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(message); // Send message to the server
+                messageInput.value = ""; // Clear the input field
+                messageInput.focus(); // Focus on input after sending
+            }
+        });
+
+        messageInput.addEventListener("input", () => {
+            sendBtn.disabled = !messageInput.value.trim(); // Enable button only if message is not empty
+        });
+
+        messageInput.addEventListener("keypress", (event) => {
+            if (event.key === "Enter") {
+                sendBtn.click();
+            }
+        });
+
+        window.onload = createWebSocket;
+    </script>
+</body>
+</html>
